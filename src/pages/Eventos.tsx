@@ -686,6 +686,7 @@ export default function Eventos() {
     const byPersonMaterial: Record<string, number> = {};
     const byPersonMedico: Record<string, number> = {};
     const byPersonMeioAmbiente: Record<string, number> = {};
+    const byTst: Record<string, number> = {};
     const byDayOfWeek: Record<string, number> = {};
     const byYear: Record<string, number> = {};
     const byTipoAcidente: Record<string, number> = {};
@@ -772,6 +773,10 @@ export default function Eventos() {
         byLetra[shift] = (byLetra[shift] || 0) + 1;
       }
 
+      if (ev.tecnico_seguranca) {
+        byTst[ev.tecnico_seguranca] = (byTst[ev.tecnico_seguranca] || 0) + 1;
+      }
+
       if (ev.cid) byCid[ev.cid] = (byCid[ev.cid] || 0) + 1;
       if (ev.atestado && ev.involved_name) byAtestado[ev.involved_name] = (byAtestado[ev.involved_name] || 0) + 1;
       if (ev.afastamento) afastamentoCom++; else afastamentoSem++;
@@ -846,6 +851,10 @@ export default function Eventos() {
       .filter(([name]) => name.includes('Base') || name.includes('Apoio'))
       .sort(([, a], [, b]) => b - a)
       .map(([name, value]) => ({ name: name.replace(' (Apoio)', ''), value }));
+
+    const topTst = Object.entries(byTst)
+      .sort(([, a], [, b]) => b - a).slice(0, 8)
+      .map(([name, value]) => ({ name: name.length > 20 ? name.slice(0, 20) + '...' : name, value }));
 
     const yearData = Object.entries(byYear).sort(([a], [b]) => a.localeCompare(b)).map(([year, count]) => ({ year, eventos: count }));
 
@@ -1066,7 +1075,7 @@ export default function Eventos() {
     return { 
       topLocations, topAreasMinerio, topAreasTpm, topAreasBase, topEquipment, topPeople, dayData, monthTrend, yearData, 
       materialCount, meioAmbienteCount, medicoCount, total: filtered.length,
-      topTipos, topAgentes, topPartes, byGenero, byTurno, turnoData,
+      topTipos, topAgentes, topPartes, byGenero, byTurno, turnoData, topTst,
       byLetra, letraData, hourlyData, daysWithoutAccident,
       topCids, topAtestados, afastamentoData, danosData, evolutionChartData, consolidations
     };
@@ -1225,6 +1234,10 @@ export default function Eventos() {
                 <div className="space-y-2">
                   <Label>Encarregado 2</Label>
                   <FastInput value={newEvent.supervisor2} onValueChange={v => setNewEvent(p => ({ ...p, supervisor2: v }))} placeholder="Nome do 2º Encarregado" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Técnico de Segurança</Label>
+                  <FastInput value={newEvent.tecnico_seguranca} onValueChange={v => setNewEvent(p => ({ ...p, tecnico_seguranca: v }))} placeholder="Nome do TST responsável" />
                 </div>
 
                 {/* Conditional Fields: Material */}
@@ -2353,6 +2366,29 @@ export default function Eventos() {
                       </Bar>
                       <Bar dataKey="Meio Ambiente" name="Meio Ambiente" stackId="a" fill="#10b981" radius={[0, 4, 4, 0]} onClick={(data) => handleChartClick(data, 'person')} className="cursor-pointer">
                         <LabelList dataKey="total" position="right" style={{ fontSize: '12px', fontWeight: 'bold', fill: 'hsl(var(--foreground))' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ExpandableChart>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">Eventos por Técnico de Segurança (TST)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ExpandableChart title="Eventos por Técnico de Segurança">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.topTst} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 88%)" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="value" name="Eventos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="value" position="top" style={{ fontSize: '11px', fontWeight: 'bold' }} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
