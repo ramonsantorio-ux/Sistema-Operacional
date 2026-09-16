@@ -352,11 +352,10 @@ export default function Eventos() {
 
     const eventToSave: any = { ...newEvent };
     
-    const isDayShift = eventToSave.shift === 'A Dia' || eventToSave.shift === 'B Dia';
     const sup1 = (eventToSave.supervisor1 || '').trim();
-    const sup2 = isDayShift ? (eventToSave.supervisor2 || '').trim() : '';
+    const sup2 = (eventToSave.supervisor2 || '').trim();
 
-    if (isDayShift && sup1 && sup2) {
+    if (sup1 && sup2) {
       eventToSave.supervisor = `${sup1} / ${sup2}`;
     } else {
       eventToSave.supervisor = sup1 || sup2;
@@ -535,7 +534,7 @@ export default function Eventos() {
             equipment: String(r['EQUIPAMENTO'] || r['equipamento'] || ''),
             plate_tag: String(r['PLACA OU TAG'] || r['PLACA/TAG'] || r['placa_tag'] || ''),
             shift: String(r['LETRA/TURNO'] || r['TURNO'] || r['turno'] || '').toUpperCase().replace(/\s*-\s*/g, ' ').replace('A DIA', 'A Dia').replace('A NOITE', 'A Noite').replace('B DIA', 'B Dia').replace('B NOITE', 'B Noite').trim(),
-            supervisor: String(r['ENCARREGADO'] || r['encarregado'] || ''),
+            supervisor: [String(r['ENCARREGADO 1'] || r['ENCARREGADO'] || r['encarregado 1'] || r['encarregado'] || ''), String(r['ENCARREGADO 2'] || r['encarregado 2'] || '')].filter(Boolean).join(' / '),
             involved_name: involved
           };
       }).filter(r => !r.isEmptyRow && r.event_date);
@@ -626,7 +625,8 @@ export default function Eventos() {
         'PLACA OU TAG': ev.plate_tag || '',
         'NOME DO ENVOLVIDO': ev.involved_name || '',
         'LETRA/TURNO': ev.shift || '',
-        'ENCARREGADO': ev.supervisor || '',
+        'ENCARREGADO 1': (ev.supervisor || '').includes(' / ') ? (ev.supervisor || '').split(' / ')[0].trim() : (ev.supervisor || '').includes(' - ') ? (ev.supervisor || '').split(' - ')[0].trim() : (ev.supervisor || ''),
+        'ENCARREGADO 2': (ev.supervisor || '').includes(' / ') ? (ev.supervisor || '').split(' / ').slice(1).join(' / ').trim() : (ev.supervisor || '').includes(' - ') ? (ev.supervisor || '').split(' - ').slice(1).join(' - ').trim() : '',
         'TÉCNICO DE SEGURANÇA': (extra.tecnico_seguranca as string) || '',
         'DATA ADMISSÃO': (extra.data_admissao as string) || '',
         'ENCAMINHAMENTO MÉDICO': (extra.encaminhamento_medico as string) || ev.encaminhamento_medico || '',
@@ -1218,23 +1218,14 @@ export default function Eventos() {
                   <FastInput value={newEvent.location} onValueChange={v => setNewEvent(p => ({ ...p, location: v }))} placeholder="Ex: PÁTIO P - Próximo ao terminal" />
                 </div>
 
-                {(newEvent.shift === 'A Dia' || newEvent.shift === 'B Dia') ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Encarregado 1</Label>
-                      <FastInput value={newEvent.supervisor1} onValueChange={v => setNewEvent(p => ({ ...p, supervisor1: v }))} placeholder="Nome do 1º Encarregado" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Encarregado 2</Label>
-                      <FastInput value={newEvent.supervisor2} onValueChange={v => setNewEvent(p => ({ ...p, supervisor2: v }))} placeholder="Nome do 2º Encarregado" />
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Encarregado</Label>
-                    <FastInput value={newEvent.supervisor1} onValueChange={v => setNewEvent(p => ({ ...p, supervisor1: v, supervisor2: '' }))} placeholder="Nome do Encarregado" />
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label>Encarregado 1</Label>
+                  <FastInput value={newEvent.supervisor1} onValueChange={v => setNewEvent(p => ({ ...p, supervisor1: v }))} placeholder="Nome do 1º Encarregado" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Encarregado 2</Label>
+                  <FastInput value={newEvent.supervisor2} onValueChange={v => setNewEvent(p => ({ ...p, supervisor2: v }))} placeholder="Nome do 2º Encarregado" />
+                </div>
 
                 {/* Conditional Fields: Material */}
                 {newEvent.categoria_evento === 'Material' && (
@@ -2619,16 +2610,14 @@ export default function Eventos() {
                 <div><Label className="text-muted-foreground">Turno</Label><p className="font-medium">{detailEvent.shift || '—'}</p></div>
                 {(() => {
                   const s = detailEvent.supervisor || '';
-                  if (s.includes(' / ')) {
-                    const [s1, s2] = s.split(' / ');
-                    return (
-                      <>
-                        <div><Label className="text-muted-foreground">Encarregado 1</Label><p className="font-medium">{s1 || '—'}</p></div>
-                        <div><Label className="text-muted-foreground">Encarregado 2</Label><p className="font-medium">{s2 || '—'}</p></div>
-                      </>
-                    );
-                  }
-                  return <div><Label className="text-muted-foreground">Encarregado</Label><p className="font-medium">{s || '—'}</p></div>;
+                  const s1 = s.includes(' / ') ? s.split(' / ')[0].trim() : s.includes(' - ') ? s.split(' - ')[0].trim() : s;
+                  const s2 = s.includes(' / ') ? s.split(' / ').slice(1).join(' / ').trim() : s.includes(' - ') ? s.split(' - ').slice(1).join(' - ').trim() : '';
+                  return (
+                    <>
+                      <div><Label className="text-muted-foreground">Encarregado 1</Label><p className="font-medium">{s1 || '—'}</p></div>
+                      <div><Label className="text-muted-foreground">Encarregado 2</Label><p className="font-medium">{s2 || '—'}</p></div>
+                    </>
+                  );
                 })()}
                 <div><Label className="text-muted-foreground">Técnico de Segurança</Label><p className="font-medium">{detailEvent.tecnico_seguranca || '—'}</p></div>
               </div>
