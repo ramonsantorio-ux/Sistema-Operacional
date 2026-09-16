@@ -66,6 +66,8 @@ interface CcoDiarioDF {
   atraso_minutos: number;
   executado_minutos: number;
   df_percent: number;
+  encarregado_1?: string;
+  encarregado_2?: string;
   created_at?: string;
 }
 
@@ -383,7 +385,7 @@ function DiarioDFTab({ records, onRefresh, loading }: {
   const emptyForm = {
     data: new Date().toISOString().split('T')[0],
     equipamento: '', local: '', area: 'MINÉRIO', fidelizacao: '', os: '',
-    turno: 'DIA', letra: 'A', profissional_titular: '', status: '',
+    turno: 'DIA', letra: 'A', profissional_titular: '', encarregado_1: '', encarregado_2: '', status: '',
     horario_inicio: '07:00', horario_termino: '17:30',
     hora_chegada: '07:00', observacao: ''
   };
@@ -458,7 +460,7 @@ function DiarioDFTab({ records, onRefresh, loading }: {
     setForm({
       data: r.data, equipamento: r.equipamento, local: r.local, area: r.area,
       fidelizacao: r.fidelizacao, os: r.os, turno: r.turno, letra: r.letra,
-      profissional_titular: r.profissional_titular, status: r.status,
+      profissional_titular: r.profissional_titular, encarregado_1: r.encarregado_1 || '', encarregado_2: r.encarregado_2 || '', status: r.status,
       horario_inicio: r.horario_inicio, horario_termino: r.horario_termino,
       hora_chegada: r.hora_chegada, observacao: ''
     });
@@ -476,6 +478,8 @@ function DiarioDFTab({ records, onRefresh, loading }: {
       'Turno': r.turno,
       'Letra': r.letra,
       'Profissional': r.profissional_titular,
+      'Encarregado 1': r.encarregado_1 || '',
+      'Encarregado 2': r.encarregado_2 || '',
       'Hr Início': r.horario_inicio,
       'Hr Término': r.horario_termino,
       'Hr Chegada': r.hora_chegada,
@@ -633,6 +637,8 @@ function DiarioDFTab({ records, onRefresh, loading }: {
             <div><Label className="text-xs mb-1">Fidelização (Placa/TAG)</Label><Input value={form.fidelizacao} onChange={e => setForm(f => ({...f, fidelizacao: e.target.value}))} className="text-sm" /></div>
             <div><Label className="text-xs mb-1">O.S</Label><Input value={form.os} onChange={e => setForm(f => ({...f, os: e.target.value}))} className="text-sm" /></div>
             <div><Label className="text-xs mb-1">Profissional Titular</Label><Input value={form.profissional_titular} onChange={e => setForm(f => ({...f, profissional_titular: e.target.value}))} className="text-sm" /></div>
+            <div><Label className="text-xs mb-1">Encarregado 1</Label><Input value={form.encarregado_1} onChange={e => setForm(f => ({...f, encarregado_1: e.target.value}))} className="text-sm" /></div>
+            <div><Label className="text-xs mb-1">Encarregado 2</Label><Input value={form.encarregado_2} onChange={e => setForm(f => ({...f, encarregado_2: e.target.value}))} className="text-sm" /></div>
             <div>
               <Label className="text-xs mb-1">Turno</Label>
               <Select value={form.turno} onValueChange={v => setForm(f => ({...f, turno: v}))}>
