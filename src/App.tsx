@@ -29,6 +29,7 @@ import GestaoNotificacoes from "./pages/GestaoNotificacoes";
 import DiscTest from "./pages/DiscTest";
 import Treinamentos from "./pages/Treinamentos";
 import AssessmentHub from "./pages/AssessmentHub";
+import CCO from "./pages/CCO";
 import { InstallPWA } from './components/InstallPWA';
 import { PWAUpdateHandler } from './components/PWAUpdateHandler';
 import { PageGuard } from "./components/auth/PageGuard";
@@ -134,6 +135,7 @@ function ProtectedRoutes() {
           <Route path="/notificacoes" element={<PageGuard pageKey="notificacoes"><GestaoNotificacoes /></PageGuard>} />
           <Route path="/treinamentos" element={<PageGuard pageKey="treinamentos"><Treinamentos /></PageGuard>} />
           <Route path="/assessments" element={<PageGuard pageKey="treinamentos"><AssessmentHub /></PageGuard>} />
+          <Route path="/cco" element={<CCO />} />
           {/* Legacy compat */}
           <Route path="/disc" element={<PageGuard pageKey="disc"><DiscTest /></PageGuard>} />
           <Route path="/disc/:id" element={<PageGuard pageKey="disc"><DiscTest /></PageGuard>} />

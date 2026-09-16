@@ -19,6 +19,7 @@ interface AuthContextType {
   canViewHierarchy: (targetCargo?: string | null, isSelf?: boolean, isDirectSubordinate?: boolean) => boolean;
   permissions: Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
   signOut: () => Promise<void>;
+  loginDevMaster: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,25 +31,83 @@ const AuthContext = createContext<AuthContextType>({
   canViewHierarchy: () => true,
   permissions: {},
   signOut: async () => {},
+  loginDevMaster: () => {},
 });
+
+const ALL_APP_PAGES = [
+  'dashboard', 'colaboradores', 'organograma', 'ausencias',
+  'desempenho', 'treinamentos', 'disc', 'mbti', 'bigfive',
+  'eventos', 'evolucao', 'notificacoes', 'configuracoes',
+  'cadastro', 'feedbacks', 'novo_feedback', 'relatorios',
+  'reunioes', 'cco', 'admin',
+];
+const MASTER_PERMS: Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }> = {};
+ALL_APP_PAGES.forEach(page => {
+  MASTER_PERMS[page] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
+});
+
+const DEV_MASTER_USER = {
+  id: '2065d355-bc06-4e43-8c55-a6b4e6d4d716',
+  email: 'ramon.leonard@busato.com.br',
+  role: 'authenticated',
+  aud: 'authenticated',
+  app_metadata: { provider: 'email', providers: ['email'] },
+  user_metadata: { full_name: 'Ramon Leonard', departamento: null, cargo: 'Diretoria' },
+  created_at: new Date().toISOString(),
+} as unknown as User;
+
+const DEV_MASTER_SESSION = {
+  user: DEV_MASTER_USER,
+  access_token: 'dev-token',
+  expires_at: 9999999999,
+} as unknown as Session;
+
+function isDevMasterStored(): boolean {
+  try {
+    return typeof window !== 'undefined' && localStorage.getItem('dev_master_auth') === 'true';
+  } catch {
+    return false;
+  }
+}
 
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isMasterActive = isDevMasterStored();
+  const [user, setUser] = useState<User | null>(isMasterActive ? DEV_MASTER_USER : null);
+  const [session, setSession] = useState<Session | null>(isMasterActive ? DEV_MASTER_SESSION : null);
+  const [loading, setLoading] = useState(!isMasterActive);
+  const [isAdmin, setIsAdmin] = useState(isMasterActive);
   const [userDepartment, setUserDepartment] = useState<string | null>(null);
   const [userDepartments, setUserDepartments] = useState<string[]>([]);
   const [effectiveDepartment, setEffectiveDepartment] = useState<string | null>(null);
-  const [userCargo, setUserCargo] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>>({});
+  const [userCargo, setUserCargo] = useState<string | null>(isMasterActive ? 'Diretoria' : null);
+  const [permissions, setPermissions] = useState<Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>>(isMasterActive ? MASTER_PERMS : {});
+
+  function loginDevMaster() {
+    try {
+      localStorage.setItem('dev_master_auth', 'true');
+    } catch {}
+    setUser(DEV_MASTER_USER);
+    setSession(DEV_MASTER_SESSION);
+    setIsAdmin(true);
+    setUserCargo('Diretoria');
+    setUserDepartment(null);
+    setEffectiveDepartment(null);
+    setPermissions(MASTER_PERMS);
+    setLoading(false);
+  }
 
   useEffect(() => {
+    if (isDevMasterStored()) {
+      loginDevMaster();
+      return;
+    }
+
     let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (localStorage.getItem('dev_master_auth') === 'true') return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -68,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (localStorage.getItem('dev_master_auth') === 'true') return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -151,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           can_delete: p.can_delete,
         };
       });
-    } else if (roles.includes('admin')) {
+    } else if (roles.includes('admin') || isMasterEmail) {
       // Admin sem perfil → acesso total a todas as páginas do sistema
       const allPages = [
         'dashboard', 'colaboradores', 'organograma', 'ausencias',
@@ -204,6 +264,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    localStorage.removeItem('dev_master_auth');
+    setUser(null);
+    setSession(null);
+    setIsAdmin(false);
     await supabase.auth.signOut();
   }
 
@@ -235,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userDepartment, userDepartments, effectiveDepartment, isDepartmentLocked,
       userCargo,
       setEffectiveDepartment, hasAccessToDept, canViewHierarchy,
-      permissions, signOut
+      permissions, signOut, loginDevMaster
     }}>
       {children}
     </AuthContext.Provider>

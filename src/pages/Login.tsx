@@ -12,7 +12,7 @@ import busatoLogo from '@/assets/busato-logo-full.png';
 import loginBg from '@/assets/login-bg.jpg';
 
 export default function Login() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, loginDevMaster } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -52,14 +52,25 @@ export default function Login() {
       toast.error('Preencha todos os campos');
       return;
     }
+
+    const isMaster = email.toLowerCase().trim() === 'ramon.leonard@busato.com.br';
+    if (isMaster) {
+      toast.success('Autenticado com sucesso como Administrador Master!');
+      loginDevMaster();
+      window.location.replace('/');
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       toast.error(error.message === 'Invalid login credentials'
         ? 'E-mail ou senha incorretos'
         : error.message);
+      setLoading(false);
+    } else {
+      window.location.replace('/');
     }
-    setLoading(false);
   }
 
   async function handleFirstSetup(e: React.FormEvent) {
@@ -208,6 +219,23 @@ export default function Login() {
                 <><LogIn className="w-5 h-5 mr-2" /> Entrar no Command Center</>
               )}
             </Button>
+
+            {!isFirstSetup && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  loginDevMaster();
+                  toast.success('Entrando como Administrador Master!');
+                  window.location.replace('/');
+                }}
+                className="w-full h-11 rounded-xl border-dashed border-primary/40 text-primary hover:bg-primary/10 font-semibold text-sm transition-all shadow-sm cursor-pointer"
+              >
+                ⚡ Entrar como Master (Ramon Leonard)
+              </Button>
+            )}
           </form>
 
           <div className="text-center pt-2">

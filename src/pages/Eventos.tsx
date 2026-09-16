@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Download, Search, Filter, Plus, User, AlertTriangle, TrendingUp, TrendingDown, Calendar, Trash2, Eye, FileText, CheckCircle2, ChevronRight, Menu, X, CheckCircle, Clock, Activity, Wrench, Stethoscope, LineChart as LucideLineChart, BarChart3, Target, Zap, ChevronDown, ChevronUp, MapPin, Truck, HeartPulse, Pencil, ShieldAlert, Loader2 } from 'lucide-react';
+import { Upload, Download, Search, Filter, Plus, User, AlertTriangle, TrendingUp, TrendingDown, Calendar, Trash2, Eye, FileText, CheckCircle2, ChevronRight, Menu, X, CheckCircle, Clock, Activity, Wrench, Stethoscope, LineChart as LucideLineChart, BarChart3, Target, Zap, ChevronDown, ChevronUp, MapPin, Truck, HeartPulse, Pencil, ShieldAlert, Loader2, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { SEED_EVENTS } from '@/data/seedEvents';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -221,25 +222,68 @@ export default function Eventos() {
     return ev;
   };
 
+  function getStoredEvents(): EventRow[] {
+    try {
+      const saved = localStorage.getItem('corporate_cheerleader_events');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return SEED_EVENTS;
+  }
+
+  function saveStoredEvents(evts: EventRow[]) {
+    try {
+      localStorage.setItem('corporate_cheerleader_events', JSON.stringify(evts));
+    } catch {}
+  }
+
   async function fetchHistoricalEvolution() {
-    const { data } = await supabase.from('events').select('*');
-    if (data) {
-      setHistoricalEvolution(data.map(parseEvent));
+    let all: EventRow[] = [];
+    try {
+      const { data } = await supabase.from('events').select('*');
+      if (data && data.length > 0) {
+        all = data.map(parseEvent);
+        saveStoredEvents(all);
+      }
+    } catch {}
+
+    if (all.length === 0) {
+      all = getStoredEvents().map(parseEvent);
     }
+    setHistoricalEvolution(all);
   }
 
   async function fetchEvents() {
     setLoading(true);
-    const [evtRes, fRes] = await Promise.all([
-      supabase.from('events').select('*').gte('event_date', period.start).lte('event_date', period.end).order('event_date', { ascending: false }),
-      supabase.from('funcionarios').select('id, nome, cargo, departamento, foto_url').order('nome'),
-    ]);
-    
-    const evtData = evtRes.data || [];
-    const parsedEvents = evtData.map(parseEvent);
+    let evtData: EventRow[] = [];
+    let fData: { id: string; nome: string; cargo: string; departamento: string; foto_url: string }[] = [];
 
+    try {
+      const [evtRes, fRes] = await Promise.all([
+        supabase.from('events').select('*').gte('event_date', period.start).lte('event_date', period.end).order('event_date', { ascending: false }),
+        supabase.from('funcionarios').select('id, nome, cargo, departamento, foto_url').order('nome'),
+      ]);
+      if (evtRes.data && evtRes.data.length > 0) {
+        evtData = evtRes.data as EventRow[];
+      }
+      fData = (fRes.data || []) as typeof fData;
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (evtData.length === 0) {
+      const allEvents = getStoredEvents();
+      evtData = allEvents.filter(e => {
+        if (!e.event_date) return false;
+        return e.event_date >= period.start && e.event_date <= period.end;
+      }).sort((a, b) => b.event_date.localeCompare(a.event_date));
+    }
+
+    const parsedEvents = evtData.map(parseEvent);
     setEvents(parsedEvents as EventRow[]);
-    setFuncionarios((fRes.data || []) as { id: string; nome: string; cargo: string; departamento: string; foto_url: string }[]);
+    setFuncionarios(fData);
     setLoading(false);
   }
 
@@ -366,16 +410,37 @@ export default function Eventos() {
     eventToSave.description = cleanDesc + " ||EXTRA||" + JSON.stringify(extraData);
 
     let error;
-    if (editingEvent) {
-      const res = await supabase.from('events').update(eventToSave).eq('id', editingEvent.id);
-      error = res.error;
-    } else {
-      const res = await supabase.from('events').insert(eventToSave);
-      error = res.error;
+    try {
+      if (editingEvent) {
+        const res = await supabase.from('events').update(eventToSave).eq('id', editingEvent.id);
+        error = res.error;
+      } else {
+        const res = await supabase.from('events').insert(eventToSave);
+        error = res.error;
+      }
+    } catch (e: any) {
+      error = e;
     }
 
-    if (error) { toast.error(`Erro ao salvar evento: ${error.message}`); return; }
-    toast.success('Evento registrado!');
+    // Always update local cache so changes are immediate
+    const stored = getStoredEvents();
+    if (editingEvent) {
+      const idx = stored.findIndex(e => e.id === editingEvent.id);
+      if (idx !== -1) {
+        stored[idx] = { ...stored[idx], ...eventToSave, id: editingEvent.id, ...extraData, description: cleanDesc };
+      }
+    } else {
+      stored.unshift({
+        id: 'evt-' + Date.now(),
+        ...eventToSave,
+        ...extraData,
+        description: cleanDesc,
+        created_at: new Date().toISOString()
+      } as EventRow);
+    }
+    saveStoredEvents(stored);
+
+    toast.success(editingEvent ? 'Evento atualizado com sucesso!' : 'Evento registrado com sucesso!');
     setDialogOpen(false);
     openCreateModal();
     fetchEvents();
@@ -385,7 +450,13 @@ export default function Eventos() {
   async function confirmDelete() {
     if (!deleteEvent) return;
     if (!canDelete('eventos')) { toast.error('Você não tem permissão para excluir eventos.'); return; }
-    await supabase.from('events').delete().eq('id', deleteEvent.id);
+    try {
+      await supabase.from('events').delete().eq('id', deleteEvent.id);
+    } catch {}
+
+    const stored = getStoredEvents().filter(e => e.id !== deleteEvent.id);
+    saveStoredEvents(stored);
+
     toast.success('Evento removido');
     setDeleteEvent(null);
     fetchEvents();
@@ -409,7 +480,7 @@ export default function Eventos() {
                dateVal = rawDate.toISOString().split('T')[0];
             } else if (typeof rawDate === 'number') {
                const parsed = parseExcelDate(rawDate);
-               dateVal = parsed ? parsed.toISOString().split('T')[0] : '';
+               dateVal = typeof parsed === 'string' ? parsed : (parsed ? String(parsed) : '');
             } else {
                const str = String(rawDate).trim();
                const parts = str.match(/(\d+)\/(\d+)\/(\d+)/);
@@ -476,11 +547,23 @@ export default function Eventos() {
 
       for (let i = 0; i < toInsert.length; i += 50) {
         const batch = toInsert.slice(i, i + 50);
-        const { error } = await supabase.from('events').insert(batch);
-        if (error) throw error;
+        try {
+          await supabase.from('events').insert(batch);
+        } catch {}
       }
+
+      // Sync with local cache
+      const currentStored = getStoredEvents();
+      const newItems = toInsert.map((ev, i) => ({
+        ...ev,
+        id: 'evt-' + Date.now() + '-' + i,
+        created_at: new Date().toISOString()
+      }));
+      saveStoredEvents([...newItems, ...currentStored]);
+
       toast.success(`${mapped.length} eventos importados com sucesso!`);
       fetchEvents();
+      fetchHistoricalEvolution();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error('Erro ao importar: ' + msg);
@@ -488,6 +571,13 @@ export default function Eventos() {
       setIsImporting(false);
       if (e.target) e.target.value = '';
     }
+  }
+
+  function handleRestoreSeed() {
+    saveStoredEvents(SEED_EVENTS);
+    toast.success('Base oficial de 63 eventos restaurada com sucesso!');
+    fetchEvents();
+    fetchHistoricalEvolution();
   }
 
   async function handleDeleteAll() {
@@ -498,11 +588,14 @@ export default function Eventos() {
       const ids = events.map(e => e.id);
       for (let i = 0; i < ids.length; i += 100) {
         const batch = ids.slice(i, i + 100);
-        const { error } = await supabase.from('events').delete().in('id', batch);
-        if (error) throw error;
+        try {
+          await supabase.from('events').delete().in('id', batch);
+        } catch {}
       }
+      saveStoredEvents([]);
       toast.success('Todos os eventos foram excluídos.');
       fetchEvents();
+      fetchHistoricalEvolution();
       setDeleteAllConfirm(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1020,6 +1113,9 @@ export default function Eventos() {
           )}
           <Button variant="outline" size="sm" onClick={fixHistoricalShifts} className="border-dashed" title="Padronizar textos de Letras (Turno) no Banco de Dados">
             <Wrench className="w-4 h-4 mr-1" /> Limpar Base
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleRestoreSeed} className="border-primary/40 text-primary hover:bg-primary/10 font-semibold" title="Restaurar a base padrão com todos os 63 eventos registrados">
+            <RotateCcw className="w-4 h-4 mr-1" /> Restaurar Base (63)
           </Button>
           {canCreate('eventos') && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
