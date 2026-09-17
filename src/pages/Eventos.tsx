@@ -50,6 +50,7 @@ interface EventRow {
   danos_materiais?: boolean;
   atendimento_medico?: boolean;
   tecnico_seguranca?: string;
+  hora_extra?: boolean;
   categoria_evento?: string;
   encaminhamento_medico?: string;
   area?: string;
@@ -121,7 +122,7 @@ export default function Eventos() {
     event_date: '', event_time: '', day_of_week: '', description: '',
     location: '', contract: 'PORTO', equipment: '', plate_tag: '',
     shift: '', supervisor1: '', supervisor2: '', involved_name: '', tipo_acidente: '', agente_lesao: '', parte_corpo: '', genero_envolvido: '', custo: 0,
-    cid: '', atestado: false, afastamento: false, danos_materiais: false, atendimento_medico: false, tecnico_seguranca: '',
+    cid: '', atestado: false, afastamento: false, danos_materiais: false, atendimento_medico: false, tecnico_seguranca: '', hora_extra: false,
     categoria_evento: 'Material', encaminhamento_medico: '', area: ''
   });
 
@@ -131,7 +132,7 @@ export default function Eventos() {
       event_date: '', event_time: '', day_of_week: '', description: '',
       location: '', contract: 'PORTO', equipment: '', plate_tag: '',
       shift: '', supervisor1: '', supervisor2: '', involved_name: '', tipo_acidente: '', agente_lesao: '', parte_corpo: '', genero_envolvido: '', custo: 0,
-      cid: '', atestado: false, afastamento: false, danos_materiais: false, atendimento_medico: false, tecnico_seguranca: '',
+      cid: '', atestado: false, afastamento: false, danos_materiais: false, atendimento_medico: false, tecnico_seguranca: '', hora_extra: false,
       categoria_evento: 'Material', encaminhamento_medico: '', area: ''
     });
   };
@@ -174,6 +175,7 @@ export default function Eventos() {
       danos_materiais: ev.danos_materiais || false,
       atendimento_medico: ev.atendimento_medico || false,
       tecnico_seguranca: ev.tecnico_seguranca || '',
+      hora_extra: ev.hora_extra || false,
       categoria_evento: ev.categoria_evento || 'Material',
       encaminhamento_medico: ev.encaminhamento_medico || '',
       area: ev.area || ''
@@ -387,6 +389,7 @@ export default function Eventos() {
       genero_envolvido: eventToSave.genero_envolvido,
       custo: eventToSave.custo,
       tecnico_seguranca: eventToSave.tecnico_seguranca,
+      hora_extra: eventToSave.hora_extra,
       categoria_evento: eventToSave.categoria_evento,
       encaminhamento_medico: eventToSave.encaminhamento_medico,
       area: eventToSave.area
@@ -402,6 +405,7 @@ export default function Eventos() {
     delete eventToSave.genero_envolvido;
     delete eventToSave.custo;
     delete eventToSave.tecnico_seguranca;
+    delete eventToSave.hora_extra;
     delete eventToSave.categoria_evento;
     delete eventToSave.encaminhamento_medico;
     delete eventToSave.area;
@@ -506,6 +510,7 @@ export default function Eventos() {
             afastamento: String(r['AFASTAMENTO'] || r['afastamento'] || '').trim().toLowerCase() === 'sim',
             danos_materiais: String(r['DANOS MATERIAIS'] || r['danos_materiais'] || r['danos materiais'] || '').trim().toLowerCase() === 'sim',
             tecnico_seguranca: String(r['TÉCNICO DE SEGURANÇA'] || r['tecnico seguranca'] || ''),
+            hora_extra: String(r['HORA EXTRA'] || r['hora extra'] || '').trim().toLowerCase() === 'sim',
             data_admissao: String(r['DATA ADMISSÃO'] || r['data admissao'] || ''),
             categoria_evento: String(r['CATEGORIA DO EVENTO'] || r['categoria evento'] || r['categoria_evento'] || ''),
             encaminhamento_medico: String(r['ENCAMINHAMENTO MÉDICO'] || r['encaminhamento medico'] || ''),
@@ -629,6 +634,7 @@ export default function Eventos() {
         'ENCARREGADO 1': (ev.supervisor || '').includes(' / ') ? (ev.supervisor || '').split(' / ')[0].trim() : (ev.supervisor || '').includes(' - ') ? (ev.supervisor || '').split(' - ')[0].trim() : (ev.supervisor || ''),
         'ENCARREGADO 2': (ev.supervisor || '').includes(' / ') ? (ev.supervisor || '').split(' / ').slice(1).join(' / ').trim() : (ev.supervisor || '').includes(' - ') ? (ev.supervisor || '').split(' - ').slice(1).join(' - ').trim() : '',
         'TÉCNICO DE SEGURANÇA': (extra.tecnico_seguranca as string) || '',
+        'HORA EXTRA': (extra.hora_extra || ev.hora_extra) ? 'SIM' : 'NÃO',
         'DATA ADMISSÃO': (extra.data_admissao as string) || '',
         'ENCAMINHAMENTO MÉDICO': (extra.encaminhamento_medico as string) || ev.encaminhamento_medico || '',
         'CID': (extra.cid as string) || ev.cid || '',
@@ -1311,6 +1317,12 @@ export default function Eventos() {
                   </>
                 )}
 
+                <div className="space-y-2 md:col-span-2 mt-2">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="hora_extra" className="w-4 h-4 cursor-pointer text-primary" checked={newEvent.hora_extra} onChange={e => setNewEvent(p => ({ ...p, hora_extra: e.target.checked }))} />
+                    <Label htmlFor="hora_extra" className="cursor-pointer">Colaborador estava em Hora Extra?</Label>
+                  </div>
+                </div>
                 <div className="space-y-2 md:col-span-2 mt-2">
                   <Label>Descrição do Evento *</Label>
                   <FastTextarea rows={4} value={newEvent.description} onValueChange={v => setNewEvent(p => ({ ...p, description: v }))} placeholder="Descreva o evento detalhadamente..." />
@@ -2666,6 +2678,7 @@ export default function Eventos() {
                   );
                 })()}
                 <div><Label className="text-muted-foreground">Técnico de Segurança</Label><p className="font-medium">{detailEvent.tecnico_seguranca || '—'}</p></div>
+                <div><Label className="text-muted-foreground">Hora Extra</Label><p className="font-medium">{detailEvent.hora_extra ? 'Sim' : 'Não'}</p></div>
               </div>
               <div>
                 <Label className="text-muted-foreground">Descrição</Label>
