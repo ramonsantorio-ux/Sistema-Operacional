@@ -514,17 +514,23 @@ export default function Eventos() {
             data_admissao: String(r['DATA ADMISSÃO'] || r['data admissao'] || ''),
             categoria_evento: String(r['CATEGORIA DO EVENTO'] || r['categoria evento'] || r['categoria_evento'] || ''),
             encaminhamento_medico: String(r['ENCAMINHAMENTO MÉDICO'] || r['encaminhamento medico'] || ''),
+            area: String(r['ÁREA'] || r['area'] || ''),
+            tipo_acidente: String(r['TIPO ACIDENTE'] || r['tipo_acidente'] || ''),
+            agente_lesao: String(r['AGENTE LESÃO'] || r['agente_lesao'] || ''),
+            parte_corpo: String(r['PARTE CORPO'] || r['parte_corpo'] || ''),
+            genero_envolvido: String(r['GÊNERO'] || r['genero_envolvido'] || ''),
+            custo: parseFloat(String(r['CUSTO'] || r['custo'] || '0')) || 0,
           };
           
           if (!extraData.categoria_evento) {
-             const isMedical = String(r['LOCAL'] || '').toUpperCase().includes('ATENDIMENTO MÉDICO') || extraData.atestado || extraData.afastamento || !!extraData.cid;
+             const isMedical = String(r['LOCAL ESPECÍFICO'] || r['LOCAL'] || '').toUpperCase().includes('ATENDIMENTO MÉDICO') || extraData.atestado || extraData.afastamento || !!extraData.cid;
              extraData.categoria_evento = isMedical ? 'Médico' : 'Material';
           }
           
           const rawDesc = String(r['DESCRIÇÃO DO EVENTO'] || r['descricao'] || '').trim();
           const cleanDesc = rawDesc.split('||EXTRA||')[0].trim();
           const involved = String(r['NOME DO ENVOLVIDO'] || r['nome_envolvido'] || '').trim();
-          const loc = String(r['LOCAL'] || r['local'] || '').trim();
+          const loc = String(r['LOCAL ESPECÍFICO'] || r['LOCAL'] || r['local'] || '').trim();
           
           // Attach a flag to identify truly empty rows
           const isEmptyRow = !rawDesc && !involved && !loc && !r['EQUIPAMENTO'] && !r['CONTRATO'];
@@ -620,27 +626,33 @@ export default function Eventos() {
       }
 
       return {
-        'DATA': ev.event_date ? new Date(ev.event_date).toLocaleDateString('pt-BR') : '',
+        'DATA': ev.event_date ? new Date(ev.event_date + 'T12:00').toLocaleDateString('pt-BR') : '',
         'HORÁRIO': ev.event_time || '',
         'DIA DA SEMANA': ev.day_of_week || '',
-        'CATEGORIA DO EVENTO': (extra.categoria_evento as string) || ev.categoria_evento || 'Material',
-        'DESCRIÇÃO DO EVENTO': ev.description?.split('||EXTRA||')[0].trim() || '',
-        'LOCAL': ev.location || '',
-        'CONTRATO': ev.contract || '',
-        'EQUIPAMENTO': ev.equipment || '',
-        'PLACA OU TAG': ev.plate_tag || '',
-        'NOME DO ENVOLVIDO': ev.involved_name || '',
         'LETRA/TURNO': ev.shift || '',
+        'CATEGORIA DO EVENTO': (extra.categoria_evento as string) || ev.categoria_evento || 'Material',
+        'ÁREA': ev.area || '',
+        'LOCAL ESPECÍFICO': ev.location || '',
+        'DESCRIÇÃO DO EVENTO': ev.description?.split('||EXTRA||')[0].trim() || '',
+        'NOME DO ENVOLVIDO': ev.involved_name || '',
+        'DATA ADMISSÃO': (extra.data_admissao as string) || '',
+        'HORA EXTRA': (extra.hora_extra || ev.hora_extra) ? 'SIM' : 'NÃO',
         'ENCARREGADO 1': (ev.supervisor || '').includes(' / ') ? (ev.supervisor || '').split(' / ')[0].trim() : (ev.supervisor || '').includes(' - ') ? (ev.supervisor || '').split(' - ')[0].trim() : (ev.supervisor || ''),
         'ENCARREGADO 2': (ev.supervisor || '').includes(' / ') ? (ev.supervisor || '').split(' / ').slice(1).join(' / ').trim() : (ev.supervisor || '').includes(' - ') ? (ev.supervisor || '').split(' - ').slice(1).join(' - ').trim() : '',
         'TÉCNICO DE SEGURANÇA': (extra.tecnico_seguranca as string) || '',
-        'HORA EXTRA': (extra.hora_extra || ev.hora_extra) ? 'SIM' : 'NÃO',
-        'DATA ADMISSÃO': (extra.data_admissao as string) || '',
+        'EQUIPAMENTO': ev.equipment || '',
+        'PLACA OU TAG': ev.plate_tag || '',
+        'DANOS MATERIAIS': (extra.danos_materiais || ev.danos_materiais) ? 'SIM' : 'NÃO',
         'ENCAMINHAMENTO MÉDICO': (extra.encaminhamento_medico as string) || ev.encaminhamento_medico || '',
         'CID': (extra.cid as string) || ev.cid || '',
         'ATESTADO': (extra.atestado || ev.atestado) ? 'SIM' : 'NÃO',
         'AFASTAMENTO': (extra.afastamento || ev.afastamento) ? 'SIM' : 'NÃO',
-        'DANOS MATERIAIS': (extra.danos_materiais || ev.danos_materiais) ? 'SIM' : 'NÃO',
+        'TIPO ACIDENTE': ev.tipo_acidente || '',
+        'AGENTE LESÃO': ev.agente_lesao || '',
+        'PARTE CORPO': ev.parte_corpo || '',
+        'GÊNERO': ev.genero_envolvido || '',
+        'CUSTO': ev.custo || 0,
+        'CONTRATO': ev.contract || '',
       };
     });
     await writeExcelFile(exportData as Record<string, unknown>[], 'Eventos_Porto.xlsx', 'Eventos');
