@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 export interface ExcelRow {
   [key: string]: string | number | boolean | null;
@@ -146,6 +146,76 @@ export async function writeExcelFile(
 
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
+  
+  // Calculate column widths and add autofilter
+  const colWidths = Object.keys(data[0]).map(key => ({ wch: Math.max(key.length, 12) }));
+  
+  // Expand column widths based on data (up to 80 chars)
+  data.forEach(row => {
+    Object.keys(row).forEach((key, i) => {
+      const val = String(row[key] || '');
+      if (val.length > colWidths[i].wch) {
+        colWidths[i].wch = Math.min(val.length + 3, 80);
+      }
+    });
+  });
+  
+  worksheet['!cols'] = colWidths;
+  if (worksheet['!ref']) {
+    worksheet['!autofilter'] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(worksheet['!ref'])) };
+  }
+
+  // Premium formatting
+  if (worksheet['!ref']) {
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    
+    // Header row (row 0)
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const address = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (!worksheet[address]) continue;
+      worksheet[address].s = {
+        font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11, name: "Calibri" },
+        fill: { fgColor: { rgb: "0F172A" } }, // Tailwind slate-900
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { rgb: "333333" } },
+          bottom: { style: "medium", color: { rgb: "1E293B" } }, // Tailwind slate-800
+          left: { style: "thin", color: { rgb: "333333" } },
+          right: { style: "thin", color: { rgb: "333333" } }
+        }
+      };
+    }
+
+    // Data rows
+    for (let R = 1; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!worksheet[address]) continue;
+        
+        const isEven = R % 2 === 0;
+        worksheet[address].s = {
+          font: { color: { rgb: "334155" }, sz: 11, name: "Calibri" }, // Tailwind slate-700
+          fill: { fgColor: { rgb: isEven ? "F8FAFC" : "FFFFFF" } }, // Tailwind slate-50 / white
+          alignment: { vertical: "center", wrapText: true }, 
+          border: {
+            top: { style: "thin", color: { rgb: "E2E8F0" } }, // slate-200
+            bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+            left: { style: "thin", color: { rgb: "E2E8F0" } },
+            right: { style: "thin", color: { rgb: "E2E8F0" } }
+          }
+        };
+        
+        // Center align specific columns like DATA, HORÁRIO, HORA EXTRA, SIM/NÃO
+        const headerAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+        const headerText = worksheet[headerAddress]?.v || '';
+        const centeredCols = ['DATA', 'HORÁRIO', 'DIA DA SEMANA', 'LETRA/TURNO', 'CATEGORIA DO EVENTO', 'HORA EXTRA', 'ATESTADO', 'AFASTAMENTO', 'DANOS MATERIAIS'];
+        if (centeredCols.includes(headerText as string)) {
+           worksheet[address].s.alignment.horizontal = "center";
+        }
+      }
+    }
+  }
+
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
   XLSX.writeFile(workbook, filename);
