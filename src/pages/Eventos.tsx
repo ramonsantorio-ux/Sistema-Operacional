@@ -352,8 +352,9 @@ export default function Eventos() {
 
     const eventToSave: any = { ...newEvent };
     
+    const isNightShift = eventToSave.shift === 'A Noite' || eventToSave.shift === 'B Noite';
     const sup1 = (eventToSave.supervisor1 || '').trim();
-    const sup2 = (eventToSave.supervisor2 || '').trim();
+    const sup2 = isNightShift ? '' : (eventToSave.supervisor2 || '').trim();
 
     if (sup1 && sup2) {
       eventToSave.supervisor = `${sup1} / ${sup2}`;
@@ -1227,14 +1228,23 @@ export default function Eventos() {
                   <FastInput value={newEvent.location} onValueChange={v => setNewEvent(p => ({ ...p, location: v }))} placeholder="Ex: PÁTIO P - Próximo ao terminal" />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Encarregado 1</Label>
-                  <FastInput value={newEvent.supervisor1} onValueChange={v => setNewEvent(p => ({ ...p, supervisor1: v }))} placeholder="Nome do 1º Encarregado" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Encarregado 2</Label>
-                  <FastInput value={newEvent.supervisor2} onValueChange={v => setNewEvent(p => ({ ...p, supervisor2: v }))} placeholder="Nome do 2º Encarregado" />
-                </div>
+                {(newEvent.shift === 'A Noite' || newEvent.shift === 'B Noite') ? (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Encarregado</Label>
+                    <FastInput value={newEvent.supervisor1} onValueChange={v => setNewEvent(p => ({ ...p, supervisor1: v, supervisor2: '' }))} placeholder="Nome do Encarregado" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Encarregado 1</Label>
+                      <FastInput value={newEvent.supervisor1} onValueChange={v => setNewEvent(p => ({ ...p, supervisor1: v }))} placeholder="Nome do 1º Encarregado" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Encarregado 2</Label>
+                      <FastInput value={newEvent.supervisor2} onValueChange={v => setNewEvent(p => ({ ...p, supervisor2: v }))} placeholder="Nome do 2º Encarregado" />
+                    </div>
+                  </>
+                )}
                 <div className="space-y-2 md:col-span-2">
                   <Label>Técnico de Segurança</Label>
                   <FastInput value={newEvent.tecnico_seguranca} onValueChange={v => setNewEvent(p => ({ ...p, tecnico_seguranca: v }))} placeholder="Nome do TST responsável" />
