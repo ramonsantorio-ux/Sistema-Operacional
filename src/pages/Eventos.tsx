@@ -229,10 +229,10 @@ export default function Eventos() {
       const saved = localStorage.getItem('corporate_cheerleader_events');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed; // retorna mesmo se vazio
       }
     } catch {}
-    return SEED_EVENTS;
+    return []; // não usa mais SEED_EVENTS como fallback automático
   }
 
   function saveStoredEvents(evts: EventRow[]) {
@@ -243,15 +243,18 @@ export default function Eventos() {
 
   async function fetchHistoricalEvolution() {
     let all: EventRow[] = [];
+    let supabaseOk = false;
     try {
-      const { data } = await supabase.from('events').select('*');
-      if (data && data.length > 0) {
-        all = data.map(parseEvent);
-        saveStoredEvents(all);
+      const { data, error } = await supabase.from('events').select('*');
+      if (!error) {
+        supabaseOk = true;
+        all = (data || []).map(parseEvent);
+        saveStoredEvents(data || []); // sincroniza localStorage (inclusive array vazio)
       }
     } catch {}
 
-    if (all.length === 0) {
+    // Só usa cache local se o Supabase falhou por completo
+    if (!supabaseOk) {
       all = getStoredEvents().map(parseEvent);
     }
     setHistoricalEvolution(all);
@@ -261,21 +264,25 @@ export default function Eventos() {
     setLoading(true);
     let evtData: EventRow[] = [];
     let fData: { id: string; nome: string; cargo: string; departamento: string; foto_url: string }[] = [];
+    let supabaseOk = false;
 
     try {
       const [evtRes, fRes] = await Promise.all([
         supabase.from('events').select('*').gte('event_date', period.start).lte('event_date', period.end).order('event_date', { ascending: false }),
         supabase.from('funcionarios').select('id, nome, cargo, departamento, foto_url').order('nome'),
       ]);
-      if (evtRes.data && evtRes.data.length > 0) {
-        evtData = evtRes.data as EventRow[];
+      if (!evtRes.error) {
+        // Supabase respondeu com sucesso (mesmo que vazio)
+        supabaseOk = true;
+        evtData = (evtRes.data || []) as EventRow[];
       }
       fData = (fRes.data || []) as typeof fData;
     } catch (e) {
       console.error(e);
     }
 
-    if (evtData.length === 0) {
+    // Só usa o cache local se o Supabase falhou (sem conexão, erro de rede, etc.)
+    if (!supabaseOk) {
       const allEvents = getStoredEvents();
       evtData = allEvents.filter(e => {
         if (!e.event_date) return false;
@@ -592,16 +599,17 @@ export default function Eventos() {
   }
 
   async function handleDeleteAll() {
-    if (!events.length) return;
     if (!canDelete('eventos')) { toast.error('Você não tem permissão para excluir eventos.'); return; }
     setIsDeletingAll(true);
     try {
-      const ids = events.map(e => e.id);
+      // Busca todos os IDs sem filtro de período para garantir exclusão completa
+      const { data: allIds, error: fetchError } = await supabase.from('events').select('id');
+      if (fetchError) throw fetchError;
+      const ids = (allIds || []).map((e: { id: string }) => e.id);
       for (let i = 0; i < ids.length; i += 100) {
         const batch = ids.slice(i, i + 100);
-        try {
-          await supabase.from('events').delete().in('id', batch);
-        } catch {}
+        const { error: delError } = await supabase.from('events').delete().in('id', batch);
+        if (delError) throw delError;
       }
       saveStoredEvents([]);
       toast.success('Todos os eventos foram excluídos.');
