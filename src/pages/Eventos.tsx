@@ -734,13 +734,25 @@ export default function Eventos() {
     let medicoCount = 0;
 
     let daysWithoutAccident: number | 'N/A' = 'N/A';
-    const validPastDates = filtered
-      .map(ev => new Date(ev.event_date))
-      .filter(d => !isNaN(d.getTime()) && d.getTime() <= new Date().getTime())
+    // Usa apenas os eventos materiais (não médicos) para contar dias sem acidentes materiais
+    const materialEventDates = filtered
+      .filter(ev => {
+        const isMed = ev.location?.toUpperCase().includes('ATENDIMENTO MÉDICO') || ev.atendimento_medico || ev.atestado || ev.afastamento || !!ev.cid || ev.categoria_evento === 'Médico';
+        const cat = ev.categoria_evento || (isMed ? 'Médico' : 'Material');
+        return cat !== 'Médico';
+      })
+      .map(ev => {
+        // Parse YYYY-MM-DD sem conversão de fuso: trata como data local
+        const [y, m, d] = ev.event_date.slice(0, 10).split('-').map(Number);
+        return new Date(y, m - 1, d);
+      })
+      .filter(d => !isNaN(d.getTime()))
       .sort((a, b) => b.getTime() - a.getTime());
 
-    if (validPastDates.length > 0) {
-      daysWithoutAccident = Math.floor((new Date().getTime() - validPastDates[0].getTime()) / (1000 * 60 * 60 * 24));
+    if (materialEventDates.length > 0) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      daysWithoutAccident = Math.floor((todayStart.getTime() - materialEventDates[0].getTime()) / (1000 * 60 * 60 * 24));
     } else if (filtered.length > 0) {
       daysWithoutAccident = 0;
     }
@@ -907,14 +919,15 @@ export default function Eventos() {
       .sort(([, a], [, b]) => b - a).slice(0, 10)
       .map(([name, count]) => ({ name, count }));
 
+    const afastamentoCom_ = afastamentoCom; // renaming to avoid shadowing
     const afastamentoData = [
-      { name: 'Eventos com Afastamento', value: afastamentoCom, fill: '#ef4444' },
-      { name: 'Eventos sem Afastamento', value: afastamentoSem, fill: '#10b981' }
+      { name: `Com Afastamento (${afastamentoCom_})`, value: afastamentoCom_, fill: '#ef4444' },
+      { name: `Sem Afastamento (${afastamentoSem})`, value: afastamentoSem, fill: '#10b981' }
     ].filter(d => d.value > 0);
 
     const danosData = [
-      { name: 'Eventos Materiais', value: danosCom, fill: '#f59e0b' },
-      { name: 'Eventos Sem Perda', value: danosSem, fill: '#3b82f6' }
+      { name: `Com Danos Materiais (${danosCom})`, value: danosCom, fill: '#f59e0b' },
+      { name: `Sem Danos (${danosSem})`, value: danosSem, fill: '#3b82f6' }
     ].filter(d => d.value > 0);
 
     const evolutionChartData = (() => {
@@ -2280,13 +2293,16 @@ export default function Eventos() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-destructive" /> Severidade dos Eventos
+                  <AlertTriangle className="w-4 h-4 text-destructive" /> Danos Materiais
+                  <span className="ml-auto text-xs font-normal bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                    {analytics.danosData.find((d: {name:string}) => d.name.startsWith('Com Danos'))?.['value' as keyof typeof analytics.danosData[0]] ?? 0} com danos
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[200px]">
                   {analytics.danosData.length > 0 ? (
-                    <ExpandableChart title="Eventos com Danos">
+                    <ExpandableChart title="Eventos com Danos Materiais">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={analytics.danosData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="50%" outerRadius="80%">
@@ -2298,7 +2314,7 @@ export default function Eventos() {
                       </ResponsiveContainer>
                     </ExpandableChart>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados</div>
+                    <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados de danos materiais</div>
                   )}
                 </div>
               </CardContent>
@@ -2308,7 +2324,12 @@ export default function Eventos() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Proporção de Afastamentos</CardTitle>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  Proporção de Afastamentos
+                  <span className="ml-auto text-xs font-normal bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 rounded-full">
+                    {analytics.afastamentoData.find((d: {name:string}) => d.name.startsWith('Com Afastamento'))?.['value' as keyof typeof analytics.afastamentoData[0]] ?? 0} afastamentos
+                  </span>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[250px]">
@@ -2325,7 +2346,7 @@ export default function Eventos() {
                       </ResponsiveContainer>
                     </ExpandableChart>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados</div>
+                    <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Sem dados de afastamento</div>
                   )}
                 </div>
               </CardContent>
@@ -2333,7 +2354,12 @@ export default function Eventos() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Top 10 Atestados Médicos</CardTitle>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  Top 10 Atestados Médicos
+                  <span className="ml-auto text-xs font-normal bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                    {analytics.topAtestados.length} colaborador{analytics.topAtestados.length !== 1 ? 'es' : ''}
+                  </span>
+                </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="h-[250px] overflow-y-auto px-4 pb-4">
@@ -2346,7 +2372,15 @@ export default function Eventos() {
                     </TableHeader>
                     <TableBody>
                       {analytics.topAtestados.length === 0 ? (
-                        <TableRow><TableCell colSpan={2} className="text-center text-xs text-muted-foreground py-6">Nenhum atestado registrado</TableCell></TableRow>
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center text-xs text-muted-foreground py-6">
+                            <div className="flex flex-col items-center gap-2">
+                              <CheckCircle2 className="w-8 h-8 text-emerald-400 opacity-50" />
+                              <span>Nenhum atestado registrado no período</span>
+                              <span className="text-[10px] opacity-60">Campos "Atestado" devem estar marcados como SIM na planilha</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       ) : (
                         analytics.topAtestados.map((a, i) => (
                           <TableRow key={i}>
