@@ -563,23 +563,48 @@ export default function Eventos() {
       // Remove the isEmptyRow flag before inserting
       const toInsert = mapped.map(({ isEmptyRow, ...rest }) => rest);
 
-      for (let i = 0; i < toInsert.length; i += 50) {
-        const batch = toInsert.slice(i, i + 50);
+      // ── Deduplicação: busca eventos existentes e filtra os repetidos ──
+      const { data: existing } = await supabase.from('events').select('event_date, description, involved_name');
+      const normalizeKey = (date: string, desc: string, name: string) =>
+        `${(date || '').slice(0, 10)}|${(desc || '').split('||EXTRA||')[0].trim().toLowerCase().replace(/\s+/g, ' ')}|${(name || '').trim().toLowerCase()}`;
+
+      const existingKeys = new Set((existing || []).map((e: { event_date: string; description: string; involved_name: string }) =>
+        normalizeKey(e.event_date, e.description, e.involved_name)
+      ));
+
+      const unique = toInsert.filter(ev =>
+        !existingKeys.has(normalizeKey(ev.event_date, ev.description, ev.involved_name))
+      );
+      const skipped = toInsert.length - unique.length;
+
+      if (unique.length === 0) {
+        toast.warning(`Todos os ${toInsert.length} eventos já existem no banco. Nenhum importado.`);
+        return;
+      }
+
+      let insertedCount = 0;
+      for (let i = 0; i < unique.length; i += 50) {
+        const batch = unique.slice(i, i + 50);
         try {
-          await supabase.from('events').insert(batch);
+          const { error: insertErr } = await supabase.from('events').insert(batch);
+          if (!insertErr) insertedCount += batch.length;
         } catch {}
       }
 
       // Sync with local cache
       const currentStored = getStoredEvents();
-      const newItems = toInsert.map((ev, i) => ({
+      const newItems = unique.map((ev, i) => ({
         ...ev,
         id: 'evt-' + Date.now() + '-' + i,
         created_at: new Date().toISOString()
       }));
       saveStoredEvents([...newItems, ...currentStored]);
 
-      toast.success(`${mapped.length} eventos importados com sucesso!`);
+      if (skipped > 0) {
+        toast.success(`${insertedCount} evento(s) importado(s). ${skipped} ignorado(s) por já existirem.`);
+      } else {
+        toast.success(`${insertedCount} evento(s) importado(s) com sucesso!`);
+      }
       fetchEvents();
       fetchHistoricalEvolution();
     } catch (err: unknown) {
