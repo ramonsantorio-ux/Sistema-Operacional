@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -155,6 +155,94 @@ interface SortableRowProps {
   funcionariosList?: FuncItem[];
 }
 
+// ─── Combobox de colaborador: digita para filtrar, clica para selecionar ───
+interface ColaboradorComboboxProps {
+  value: string;
+  funcionariosList: FuncItem[];
+  onChange: (nome: string) => void;
+}
+function ColaboradorCombobox({ value, funcionariosList, onChange }: ColaboradorComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value || '');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sincroniza o texto quando o valor externo muda (ex: ao carregar dados)
+  useEffect(() => { setQuery(value || ''); }, [value]);
+
+  // Fecha ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        // Se o texto digitado não corresponde ao valor salvo, restaura
+        if (query !== value) setQuery(value || '');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [query, value]);
+
+  const filtered = funcionariosList.filter(f =>
+    !query || f.nome.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 20);
+
+  const handleSelect = useCallback((nome: string) => {
+    onChange(nome);
+    setQuery(nome);
+    setOpen(false);
+  }, [onChange]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // Se não há filtro ou o texto não bate com nenhuma opção, aceita como valor livre
+      if (filtered.length > 0) {
+        handleSelect(filtered[0].nome);
+      } else {
+        onChange(query);
+        setOpen(false);
+      }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+      setQuery(value || '');
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        placeholder="Buscar colaborador..."
+        autoComplete="off"
+        className="flex h-8 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        onChange={e => { setQuery(e.target.value); setOpen(true); onChange(e.target.value); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
+      />
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg text-xs">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-muted-foreground italic">Nenhum colaborador encontrado</div>
+          ) : (
+            filtered.map(f => (
+              <div
+                key={f.id}
+                className={`px-3 py-1.5 cursor-pointer hover:bg-primary/10 font-medium ${f.nome === value ? 'bg-primary/5 text-primary' : 'text-slate-800 dark:text-slate-200'}`}
+                onMouseDown={e => { e.preventDefault(); handleSelect(f.nome); }}
+              >
+                {f.nome}
+                {f.cargo && <span className="ml-2 text-[10px] text-muted-foreground font-normal">{f.cargo}</span>}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SortableRow({ row, idx, handleChange, handleRemoveRow, funcionariosList = [] }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.id || `row-${idx}` });
 
@@ -197,21 +285,13 @@ function SortableRow({ row, idx, handleChange, handleRemoveRow, funcionariosList
         </div>
       </TableCell>
 
-      {/* Nome */}
+      {/* Nome ── Combobox com busca */}
       <TableCell className="p-1 min-w-[210px]">
-        <select
+        <ColaboradorCombobox
           value={row.nome_email}
-          onChange={(e) => handleChange(idx, 'nome_email', e.target.value)}
-          className="flex h-8 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-        >
-          <option value="">Selecione o colaborador...</option>
-          {funcionariosList.map((f: FuncItem) => (
-            <option key={f.id} value={f.nome}>{f.nome}</option>
-          ))}
-          {!funcionariosList.find((f: FuncItem) => f.nome === row.nome_email) && row.nome_email && (
-            <option value={row.nome_email}>{row.nome_email}</option>
-          )}
-        </select>
+          funcionariosList={funcionariosList}
+          onChange={(nome) => handleChange(idx, 'nome_email', nome)}
+        />
       </TableCell>
 
       {/* Cargo */}
